@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include <Wire.h>
 
 #include <util/delay.h>
 
@@ -13,7 +14,17 @@
 #define ECHO_TIMEOUT   500 // us
 #define MEAS_TIMEOUT 50000 // us
 
+#define SLAVE_ADDRESS 0x01
+
 uint32_t time() { return micros(); }
+
+//char buf[8];
+// volatile uint8_t cs[8] = {0x80,0,0,0x81,0x82,0x83,0x84,0x85};
+volatile uint8_t cs[8] = {1,2,3,4,5,6,7,8};
+
+
+//void receiveData(int byteCount);
+void sendData();
 
 void setup() {
     Serial.begin(115200);
@@ -22,6 +33,12 @@ void setup() {
     PORTD |= ECHO_D_MASK;
     PORTB |= ECHO_B_MASK;
     Serial.println("Locator");
+    Wire.begin(SLAVE_ADDRESS);
+    // Wire.onReceive(receiveData);
+    Wire.onRequest(sendData);
+    Serial.println("Ready!");
+    pinMode(A4, INPUT_PULLUP);
+    pinMode(A5, INPUT_PULLUP);
     delay(1000);
 }
 
@@ -37,6 +54,7 @@ uint8_t zeropos(uint8_t v) {
     for(uint8_t i = 0; i != 8; ++i)
         if ((v & (1<<i)) == 0)
             return i;
+    return 8;
 }
 
 void loop() {
@@ -81,17 +99,44 @@ void loop() {
         rect[i] = t - t_start;
         rece[i] = echos;
     }
+
+    uint8_t old_mask = 0;
+    // cs[2]=zeropos(rece[0] | old_mask);
+
     Serial.print("Received ");
     Serial.print(i);
     Serial.println(" changes:");
-    uint8_t old_mask = 0;
     for (int8_t j = 0; j != i; ++j) {
         uint8_t reci = zeropos(rece[j] | old_mask);
         old_mask |= (1<<reci);
+        rece[j] = reci;
         Serial.print('\t');
         Serial.print(reci);
         Serial.print(": ");
         Serial.print(340*(rect[j]/1e6));
         Serial.println(" m");
     }
+    return;
+    float dist = (340*(rect[0]/1e6))*100;
+    if(dist>=128){
+        cs[1]=127;
+    }else{
+        cs[1] = dist;
+    }
+    cs[2]=rece[0];
+
+}
+
+// void receiveData(int byteCount ){
+//     while(Wire.available()>0) 
+//     {
+//       val=Wire.read();
+//       Serial.print((char)val);
+//       flag=1;
+//     }
+
+// }
+void sendData(){
+    Wire.write(const_cast<uint8_t*>(cs),8);
+
 }
